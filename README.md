@@ -55,8 +55,38 @@ A robust order execution engine for Solana DEXs (Raydium/Meteora) supporting Mar
 }
 ```
 
-### WebSocket Updates
-Connect to `ws://localhost:3000/api/orders/ws` to receive real-time status updates.
+**Response**:
+```json
+{
+  "orderId": "uuid",
+  "status": "PENDING",
+  "message": "Order received and queued"
+}
+```
+
+### WebSocket Real-time Updates
+Connect to `ws://localhost:3000/api/orders/ws` to receive real-time order status updates.
+
+**Connection**:
+```javascript
+const ws = new WebSocket('ws://localhost:3000/api/orders/ws');
+
+ws.onmessage = (event) => {
+  const update = JSON.parse(event.data);
+  console.log(update);
+  // { orderId, status, txHash?, error?, timestamp }
+};
+```
+
+**Status Flow**:
+- `PENDING` → Order received and queued
+- `ROUTING` → Fetching quotes from DEXs
+- `BUILDING` → Building transaction
+- `SUBMITTED` → Transaction submitted to blockchain
+- `CONFIRMED` → Transaction confirmed (includes txHash)
+- `FAILED` → Order failed (includes error message)
+
+**Test WebSocket**: Open `websocket-test.html` in your browser for a live monitoring dashboard.
 
 ## Design Decisions
 

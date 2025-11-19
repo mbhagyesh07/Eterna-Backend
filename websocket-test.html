@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Execution Engine - WebSocket Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .connected {
+            background: #d4edda;
+            color: #155724;
+        }
+        .disconnected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        #messages {
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 20px 0;
+            background: #fafafa;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .message {
+            padding: 8px;
+            margin: 5px 0;
+            border-left: 3px solid #007bff;
+            background: white;
+        }
+        .message.PENDING { border-left-color: #6c757d; }
+        .message.ROUTING { border-left-color: #17a2b8; }
+        .message.BUILDING { border-left-color: #ffc107; }
+        .message.SUBMITTED { border-left-color: #fd7e14; }
+        .message.CONFIRMED { border-left-color: #28a745; }
+        .message.FAILED { border-left-color: #dc3545; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Order Execution Engine - WebSocket Monitor</h1>
+        
+        <div id="status" class="status disconnected">
+            Disconnected
+        </div>
+
+        <div>
+            <button id="connectBtn" onclick="connect()">Connect WebSocket</button>
+            <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+            <button onclick="submitTestOrder()">Submit Test Order</button>
+            <button onclick="clearMessages()">Clear Messages</button>
+        </div>
+
+        <div id="messages"></div>
+    </div>
+
+    <script>
+        let ws = null;
+        const messagesDiv = document.getElementById('messages');
+        const statusDiv = document.getElementById('status');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+
+        function connect() {
+            if (ws) {
+                addMessage('Already connected', 'info');
+                return;
+            }
+
+            ws = new WebSocket('ws://localhost:3000/api/orders/ws');
+
+            ws.onopen = () => {
+                statusDiv.textContent = 'Connected ✓';
+                statusDiv.className = 'status connected';
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+                addMessage('WebSocket connected', 'info');
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    addMessage(JSON.stringify(data, null, 2), data.status || 'info');
+                } catch (e) {
+                    addMessage(event.data, 'info');
+                }
+            };
+
+            ws.onerror = (error) => {
+                addMessage('WebSocket error: ' + error, 'error');
+            };
+
+            ws.onclose = () => {
+                statusDiv.textContent = 'Disconnected ✗';
+                statusDiv.className = 'status disconnected';
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                addMessage('WebSocket disconnected', 'info');
+                ws = null;
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+            }
+        }
+
+        function addMessage(text, type = 'info') {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message ' + type;
+            messageDiv.textContent = new Date().toLocaleTimeString() + ' - ' + text;
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function clearMessages() {
+            messagesDiv.innerHTML = '';
+        }
+
+        async function submitTestOrder() {
+            try {
+                const response = await fetch('http://localhost:3000/api/orders/execute', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        type: 'MARKET',
+                        side: 'BUY',
+                        inputToken: 'SOL',
+                        outputToken: 'USDC',
+                        amount: 1.5
+                    })
+                });
+
+                const data = await response.json();
+                addMessage('Order submitted: ' + JSON.stringify(data, null, 2), 'info');
+            } catch (error) {
+                addMessage('Error submitting order: ' + error.message, 'error');
+            }
+        }
+
+        // Auto-connect on page load
+        window.onload = () => {
+            connect();
+        };
+    </script>
+</body>
+</html>

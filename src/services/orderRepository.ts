@@ -1,4 +1,5 @@
 import { PrismaClient, Order } from '@prisma/client';
+import { orderStatusEmitter } from './orderStatusEmitter';
 
 const prisma = new PrismaClient();
 
@@ -10,12 +11,17 @@ export class OrderRepository {
         outputToken: string;
         amount: number;
     }): Promise<Order> {
-        return prisma.order.create({
+        const order = await prisma.order.create({
             data: {
                 ...data,
                 status: 'PENDING',
             },
         });
+
+        // Publish initial status
+        await orderStatusEmitter.publishStatusUpdate(order.id, 'PENDING');
+
+        return order;
     }
 
     async getOrderById(id: string): Promise<Order | null> {
@@ -25,7 +31,7 @@ export class OrderRepository {
     }
 
     async updateOrderStatus(id: string, status: string, txHash?: string, error?: string): Promise<Order> {
-        return prisma.order.update({
+        const order = await prisma.order.update({
             where: { id },
             data: {
                 status,
@@ -33,6 +39,11 @@ export class OrderRepository {
                 error,
             },
         });
+
+        // Publish status update to Redis for WebSocket broadcasting
+        await orderStatusEmitter.publishStatusUpdate(id, status, txHash, error);
+
+        return order;
     }
 
     async getActiveOrders(): Promise<Order[]> {
